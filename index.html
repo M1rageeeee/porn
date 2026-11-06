@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>AI Uncensored Hub</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #16161e;
+    --surface-2: #1f1f2a;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --accent: #7c5cfc;
+    --accent-glow: rgba(124, 92, 252, 0.35);
+    --user-bubble: #2d2450;
+    --bot-bubble: #1c1c28;
+    --radius: 18px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --danger: #ff5a5a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: var(--safe-top);
+    -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid #2a2a3a;
+    font-weight: 700;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 22px;
+    cursor: pointer;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    transition: background 0.2s;
+  }
+  .icon-btn:active { background: #2a2a3a; }
+  .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .status-bar {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 4px 8px;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .message {
+    max-width: 88%;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    line-height: 1.45;
+    font-size: 15px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    animation: fadeIn 0.25s ease;
+    position: relative;
+  }
+  .message.user {
+    align-self: flex-end;
+    background: var(--user-bubble);
+    border-bottom-right-radius: 6px;
+  }
+  .message.bot {
+    align-self: flex-start;
+    background: var(--bot-bubble);
+    border-bottom-left-radius: 6px;
+  }
+  .message.error { background: #3a1c1c; color: #ffb0b0; }
+  .message img, .message video {
+    max-width: 100%;
+    border-radius: 12px;
+    margin-top: 8px;
+    display: block;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .skeleton {
+    align-self: flex-start;
+    width: 55%;
+    height: 42px;
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, #1c1c28 25%, #262636 50%, #1c1c28 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .input-area {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    padding: 8px 12px;
+    padding-bottom: calc(8px + var(--safe-bottom));
+    background: var(--surface);
+    border-top: 1px solid #2a2a3a;
+    flex-shrink: 0;
+  }
+  textarea {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid #2a2a3a;
+    border-radius: 22px;
+    color: var(--text);
+    font-size: 16px;
+    padding: 10px 16px;
+    resize: none;
+    max-height: 120px;
+    min-height: 44px;
+    outline: none;
+    line-height: 1.4;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  .send-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 0 18px var(--accent-glow);
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .send-btn:active { transform: scale(0.92); }
+  .send-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.25s;
+  }
+  .modal.hidden { opacity: 0; pointer-events: none; }
+  .modal-content {
+    background: var(--surface);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 24px 24px 0 0;
+    padding: 20px 20px calc(20px + var(--safe-bottom));
+    max-height: 85dvh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin: 14px 0 6px;
+  }
+  select {
+    width: 100%;
+    padding: 12px;
+    background: var(--surface-2);
+    border: 1px solid #2a2a3a;
+    color: var(--text);
+    border-radius: 12px;
+    font-size: 15px;
+    outline: none;
+  }
+  select:disabled { opacity: 0.5; }
+  .primary-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .primary-btn:active { opacity: 0.85; }
+  .hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    line-height: 1.4;
+  }
+  @media (min-width: 600px) {
+    .modal { align-items: center; }
+    .modal-content { border-radius: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span>🔞 AI Hub</span>
+  <button id="settingsBtn" class="icon-btn" aria-label="Настройки">⚙️</button>
+</header>
+
+<div id="statusBar" class="status-bar">Готов к работе</div>
+
+<main id="chatContainer" class="chat-container">
+  <div class="message bot">Привет! Выбери провайдера в настройках ⚙️. Могу поболтать, нарисовать фото, собрать видео, или описать твоё фото (📎).</div>
+</main>
+
+<div class="input-area">
+  <button id="uploadBtn" class="icon-btn" aria-label="Загрузить фото">📎</button>
+  <input type="file" id="fileInput" accept="image/*" hidden>
+  <textarea id="userInput" rows="1" placeholder="Сообщение или промпт..." autocomplete="off"></textarea>
+  <button id="sendBtn" class="send-btn" aria-label="Отправить">➤</button>
+</div>
+
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Настройки</h3>
+      <button id="closeSettings" class="icon-btn" aria-label="Закрыть">×</button>
+    </div>
+    <label>Провайдер</label>
+    <select id="providerSelect"></select>
+    <label>Модель чата</label>
+    <select id="chatModelSelect"></select>
+    <label>Модель изображений</label>
+    <select id="imageModelSelect"></select>
+    <label>Модель видео</label>
+    <select id="videoModelSelect"></select>
+    <button id="saveSettings" class="primary-btn">Сохранить</button>
+    <div class="hint">Ключи хранятся прямо в этом файле. Для публичного хостинга нужен backend-прокси.</div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   КОНФИГ
+   ===================================================================== */
+const CONFIG = {
+  REPLICATE_TOKEN: "r8_ВСТАВЬ_СВОЙ_ТОКЕН_REPLICATE",
+  GROQ_API_KEY:    "gsk_ВСТАВЬ_СВОЙ_КЛЮЧ_GROQ",
+};
+
+const PROVIDERS = {
+  replicate: {
+    label: "Replicate",
+    models: {
+      chat: [
+        { id: "meta/meta-llama-3-70b-instruct",                label: "Llama 3 70B", vision: false },
+        { id: "mistralai/mixtral-8x7b-instruct-v0.1",          label: "Mixtral 8x7B", vision: false },
+        { id: "cognitivecomputations/dolphin-2.9-llama3-70b",  label: "Dolphin 2.9 70B (uncensored)", vision: false },
+      ],
+      image: [
+        { id: "stability-ai/sdxl",             label: "SDXL" },
+        { id: "lucataco/dreamshaper-xl-turbo", label: "DreamShaper XL Turbo" },
+      ],
+      video: [
+        { id: "anotherjesse/zeroscope-v2-xl",  label: "Zeroscope v2 XL" },
+      ],
+    },
+    defaults: {
+      chat:  "meta/meta-llama-3-70b-instruct",
+      image: "stability-ai/sdxl",
+      video: "anotherjesse/zeroscope-v2-xl",
+    },
+    // Поддержка vision для загрузки фото
+    visionModel: "yorickvp/llava-13b",
+  },
+  groq: {
+    label: "Groq (только чат)",
+    models: {
+      chat: [
+        { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", vision: false },
+        { id: "llama-3.1-8b-instant",    label: "Llama 3.1 8B (fast)", vision: false },
+      ],
+      image: [],
+      video: [],
+    },
+    defaults: {
+      chat:  "llama-3.3-70b-versatile",
+      image: null,
+      video: null,
+    },
+    visionModel: null, // Groq не поддерживает vision
+  },
+};
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const state = {
+  provider: "replicate",
+  chatModel: "",
+  imageModel: "",
+  videoModel: "",
+  messages: [],         // { role, content }
+  abortController: null,
+  currentJobToken: null,
+};
+
+const chatContainer = document.getElementById("chatContainer");
+const userInput     = document.getElementById("userInput");
+const sendBtn       = document.getElementById("sendBtn");
+const uploadBtn     = document.getElementById("uploadBtn");
+const fileInput     = document.getElementById("fileInput");
+const statusBar     = document.getElementById("statusBar");
+
+/* =====================================================================
+   УТИЛИТЫ
+   ===================================================================== */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchWithRetry(url, opts, { retries = 3, timeoutMs = 30000, signal } = {}) {
+  for (let i = 0; i < retries; i++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const onAbort = () => ctrl.abort();
+    if (signal) signal.addEventListener("abort", onAbort);
+    try {
+      const res = await fetch(url, { ...opts, signal: ctrl.signal });
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      if ((res.status === 429 || res.status >= 500) && i < retries - 1) {
+        await sleep(1000 * 2 ** i);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      if (err.name === "AbortError" && signal?.aborted) throw err;
+      if (i === retries - 1) throw err;
+      await sleep(1000 * 2 ** i);
+    }
+  }
+}
+
+function fileToDataUri(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+function setStatus(msg) { statusBar.textContent = msg; }
+
+function addMessage(text, isUser, { mediaUrl = null, isVideo = false, isError = false, localPreviewUrl = null } = {}) {
+  const div = document.createElement("div");
+  div.className = `message ${isUser ? "user" : "bot"}${isError ? " error" : ""}`;
+  if (text) div.appendChild(document.createTextNode(text));
+  if (localPreviewUrl) {
+    const img = document.createElement("img");
+    img.src = localPreviewUrl;
+    img.style.maxWidth = "200px";
+    img.style.marginTop = "8px";
+    img.style.borderRadius = "12px";
+    div.appendChild(img);
+  } else if (mediaUrl) {
+    const el = document.createElement(isVideo ? "video" : "img");
+    el.src = mediaUrl;
+    if (isVideo) { el.controls = true; el.playsInline = true; el.preload = "metadata"; }
+    else { el.loading = "lazy"; }
+    div.appendChild(el);
+  }
+  chatContainer.appendChild(div);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+let skeletonEl = null;
+function showSkeleton() {
+  skeletonEl = document.createElement("div");
+  skeletonEl.className = "skeleton";
+  chatContainer.appendChild(skeletonEl);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+function hideSkeleton() {
+  skeletonEl?.remove();
+  skeletonEl = null;
+}
+
+function setBusy(isBusy) {
+  sendBtn.disabled = isBusy;
+  // Кнопка загрузки блокируется, если busy или текущий провайдер не поддерживает vision
+  updateUploadButton();
+}
+
+function updateUploadButton() {
+  const p = PROVIDERS[state.provider];
+  const supportsVision = !!p.visionModel;
+  uploadBtn.disabled = !supportsVision;
+  uploadBtn.title = supportsVision ? "Загрузить фото для анализа" : "Текущий провайдер не поддерживает анализ фото";
+}
+
+/* =====================================================================
+   PRO настройки провайдеров (каскадные селекты)
+   ===================================================================== */
+function setProviderDefaults(providerId) {
+  const p = PROVIDERS[providerId];
+  state.chatModel  = p.defaults.chat;
+  state.imageModel = p.defaults.image;
+  state.videoModel = p.defaults.video;
+}
+
+function renderProviderSelect() {
+  const sel = document.getElementById("providerSelect");
+  sel.innerHTML = Object.entries(PROVIDERS)
+    .map(([k, v]) => `<option value="${k}" ${k === state.provider ? "selected" : ""}>${v.label}</option>`)
+    .join("");
+  sel.onchange = (e) => {
+    state.provider = e.target.value;
+    setProviderDefaults(state.provider);
+    renderModelSelects();
+    updateUploadButton();
+    setStatus(`Провайдер: ${PROVIDERS[state.provider].label}`);
+  };
+}
+
+function renderModelSelects() {
+  const p = PROVIDERS[state.provider];
+  const fill = (id, list, selected) => {
+    const el = document.getElementById(id);
+    if (!list || !list.length) {
+      el.innerHTML = `<option value="">— нет моделей у этого провайдера —</option>`;
+      el.disabled = true;
+      return;
+    }
+    el.disabled = false;
+    el.innerHTML = list
+      .map((m) => `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${m.label}</option>`)
+      .join("");
+  };
+  fill("chatModelSelect",  p.models.chat,  state.chatModel);
+  fill("imageModelSelect", p.models.image, state.imageModel);
+  fill("videoModelSelect", p.models.video, state.videoModel);
+
+  document.getElementById("chatModelSelect").onchange  = (e) => { state.chatModel  = e.target.value; };
+  document.getElementById("imageModelSelect").onchange = (e) => { state.imageModel = e.target.value; };
+  document.getElementById("videoModelSelect").onchange = (e) => { state.videoModel = e.target.value; };
+}
+
+/* =====================================================================
+   REPLICATE (chat / image / video / vision)
+   ===================================================================== */
+const REPLICATE_API = "https://api.replicate.com/v1";
+
+async function replicateCreate(model, input, signal) {
+  const res = await fetchWithRetry(`${REPLICATE_API}/models/${model}/predictions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${CONFIG.REPLICATE_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ input }),
+  }, { signal, timeoutMs: 60000 });
+
+  if (!res.ok) {
+    let body = "";
+    try { body = JSON.stringify(await res.json()); } catch { body = await res.text(); }
+    throw new Error(`Replicate ${res.status}: ${body.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+async function replicatePoll(predictionId, { maxMs = 180000, signal } = {}) {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await sleep(2000);
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const res = await fetchWithRetry(`${REPLICATE_API}/predictions/${predictionId}`, {
+      headers: { Authorization: `Token ${CONFIG.REPLICATE_TOKEN}` },
+    }, { signal, timeoutMs: 20000 });
+    if (!res.ok) continue;
+    const pred = await res.json();
+    if (pred.status === "succeeded") return pred;
+    if (pred.status === "failed" || pred.status === "canceled") {
+      throw new Error(pred.error || "Replicate: генерация не удалась");
+    }
+  }
+  throw new Error("Replicate: таймаут генерации");
+}
+
+async function replicateChat(model, messages, signal) {
+  // ВАЖНО: заголовки должны содержать только ASCII. Промпт собираем на английском.
+  const prompt = messages
+    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n") + "\nAssistant:";
+
+  const pred = await replicateCreate(model, {
+    prompt,
+    max_tokens: 1024,
+    temperature: 0.8,
+  }, signal);
+
+  const result = await replicatePoll(pred.id, { maxMs: 90000, signal });
+  const out = result.output;
+  return Array.isArray(out) ? out.join("") : String(out || "");
+}
+
+async function replicateImage(model, prompt, signal) {
+  const pred = await replicateCreate(model, {
+    prompt,
+    negative_prompt: "blurry, low quality, bad anatomy, watermark",
+    num_outputs: 1,
+    width: 1024,
+    height: 1024,
+    disable_safety_checker: true,
+  }, signal);
+
+  const result = await replicatePoll(pred.id, { maxMs: 120000, signal });
+  const out = result.output;
+  return Array.isArray(out) ? out[0] : out;
+}
+
+async function replicateVideo(model, prompt, signal) {
+  const pred = await replicateCreate(model, {
+    prompt,
+    num_frames: 24,
+    fps: 8,
+  }, signal);
+
+  const result = await replicatePoll(pred.id, { maxMs: 180000, signal });
+  const out = result.output;
+  return Array.isArray(out) ? out[0] : out;
+}
+
+async function replicateVision(dataUri, signal) {
+  const pred = await replicateCreate("yorickvp/llava-13b", {
+    image: dataUri,
+    prompt: "Describe this image in detail in Russian.",
+    max_tokens: 400,
+  }, signal);
+  const result = await replicatePoll(pred.id, { maxMs: 90000, signal });
+  const out = result.output;
+  return Array.isArray(out) ? out.join("") : String(out || "");
+}
+
+/* =====================================================================
+   GROQ (chat)
+   ===================================================================== */
+async function groqChat(model, messages, signal) {
+  const res = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${CONFIG.GROQ_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "You are a friendly and direct assistant. Answer briefly in Russian." },
+        ...messages,
+      ],
+      temperature: 0.8,
+      max_tokens: 1024,
+    }),
+  }, { signal, timeoutMs: 30000 });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Groq ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+/* =====================================================================
+   УНИВЕРСАЛЬНЫЕ ВЫЗОВЫ
+   ===================================================================== */
+async function chat(messages, signal) {
+  if (state.provider === "groq")    return groqChat(state.chatModel, messages, signal);
+  if (state.provider === "replicate") return replicateChat(state.chatModel, messages, signal);
+  throw new Error("Провайдер не поддерживает чат");
+}
+
+async function generateImage(prompt, signal) {
+  if (state.provider !== "replicate") throw new Error("Генерация фото доступна только через Replicate");
+  return replicateImage(state.imageModel, prompt, signal);
+}
+
+async function generateVideo(prompt, signal) {
+  if (state.provider !== "replicate") throw new Error("Генерация видео доступна только через Replicate");
+  return replicateVideo(state.videoModel, prompt, signal);
+}
+
+/* =====================================================================
+   ОТПРАВКА СООБЩЕНИЯ
+   ===================================================================== */
+async function handleSend() {
+  const text = userInput.value.trim();
+  if (!text) return;
+
+  addMessage(text, true);
+  state.messages.push({ role: "user", content: text });
+  userInput.value = "";
+  userInput.style.height = "44px";
+  setBusy(true);
+  showSkeleton();
+
+  // Отменяем предыдущий запрос
+  state.abortController?.abort();
+  state.abortController = new AbortController();
+  const mySignal = state.abortController.signal;
+
+  try {
+    const isImage = /картинк|фото|изображени|нарисуй|photo|image|draw/i.test(text);
+    const isVideo = /видео|video|clip|animate|анимаци/i.test(text);
+
+    if (isImage || isVideo) {
+      setStatus(isVideo ? "Генерирую видео…" : "Генерирую изображение…");
+      hideSkeleton();
+      showSkeleton();
+      const url = isVideo
+        ? await generateVideo(text, mySignal)
+        : await generateImage(text, mySignal);
+      hideSkeleton();
+      addMessage(isVideo ? "🎬 Готово:" : "🖼 Готово:", false, { mediaUrl: url, isVideo });
+      setStatus("Готов к работе");
+    } else {
+      setStatus("Думаю…");
+      const reply = await chat(state.messages.slice(-20), mySignal);
+      hideSkeleton();
+      addMessage(reply, false);
+      state.messages.push({ role: "assistant", content: reply });
+      setStatus("Готов к работе");
+    }
+  } catch (err) {
+    hideSkeleton();
+    if (err.name === "AbortError") {
+      // молча — пользователь сам отменил (новый запрос)
+    } else {
+      addMessage(`⚠️ ${err.message}`, false, { isError: true });
+      setStatus("Ошибка");
+    }
+  } finally {
+    hideSkeleton();
+    setBusy(false);
+    if (state.abortController?.signal === mySignal) state.abortController = null;
+  }
+}
+
+/* =====================================================================
+   ЗАГРУЗКА ФОТО (vision)
+   ===================================================================== */
+uploadBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  fileInput.value = "";
+
+  const previewUrl = URL.createObjectURL(file);
+  addMessage("📎 Фото отправлено, анализирую…", true, { localPreviewUrl: previewUrl });
+
+  setBusy(true);
+  showSkeleton();
+
+  state.abortController?.abort();
+  state.abortController = new AbortController();
+  const mySignal = state.abortController.signal;
+
+  try {
+    const dataUri = await fileToDataUri(file);
+    const description = await replicateVision(dataUri, mySignal);
+    hideSkeleton();
+    addMessage(`📷 На фото: ${description}`, false);
+    state.messages.push({ role: "user", content: `[Пользователь загрузил фото. Содержание: ${description}]` });
+    setStatus("Готов к работе");
+  } catch (err) {
+    hideSkeleton();
+    if (err.name !== "AbortError") {
+      addMessage(`⚠️ Не удалось проанализировать фото: ${err.message}`, false, { isError: true });
+    }
+  } finally {
+    URL.revokeObjectURL(previewUrl);
+    setBusy(false);
+  }
+});
+
+/* =====================================================================
+   ОБРАБОТЧИКИ ВВОДА
+   ===================================================================== */
+sendBtn.addEventListener("click", handleSend);
+userInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+});
+userInput.addEventListener("input", () => {
+  userInput.style.height = "auto";
+  userInput.style.height = Math.min(userInput.scrollHeight, 120) + "px";
+});
+
+/* =====================================================================
+   МОДАЛКА НАСТРОЕК
+   ===================================================================== */
+document.getElementById("settingsBtn").addEventListener("click", () => {
+  document.getElementById("settingsModal").classList.remove("hidden");
+});
+document.getElementById("closeSettings").addEventListener("click", () => {
+  document.getElementById("settingsModal").classList.add("hidden");
+});
+document.getElementById("saveSettings").addEventListener("click", () => {
+  document.getElementById("settingsModal").classList.add("hidden");
+  setStatus(`Провайдер: ${PROVIDERS[state.provider].label} · модель: ${state.chatModel}`);
+});
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+function init() {
+  setProviderDefaults(state.provider);
+  renderProviderSelect();
+  renderModelSelects();
+  updateUploadButton();
+  setStatus(`Провайдер: ${PROVIDERS[state.provider].label}`);
+
+  // Проверка, что ключи вставлены
+  if (CONFIG.REPLICATE_TOKEN.startsWith("r8_ВСТАВЬ")) {
+    addMessage("⚠️ Не забудь вставить свой REPLICATE_TOKEN в начале <script> в этом файле.", false, { isError: true });
+  }
+}
+init();
+</script>
+</body>
+</html>
