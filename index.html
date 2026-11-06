@@ -58,6 +58,7 @@
     transition: background 0.2s;
   }
   .icon-btn:active { background: #2a2a3a; }
+  .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
   .status-bar {
     font-size: 12px;
     color: var(--text-dim);
@@ -291,9 +292,9 @@ const PROVIDERS = {
     label: "Replicate",
     models: {
       chat: [
-        { id: "meta/meta-llama-3-70b-instruct",                label: "Llama 3 70B" },
-        { id: "mistralai/mixtral-8x7b-instruct-v0.1",          label: "Mixtral 8x7B" },
-        { id: "cognitivecomputations/dolphin-2.9-llama3-70b",  label: "Dolphin 2.9 70B (uncensored)" },
+        { id: "meta/meta-llama-3-70b-instruct",                label: "Llama 3 70B", vision: false },
+        { id: "mistralai/mixtral-8x7b-instruct-v0.1",          label: "Mixtral 8x7B", vision: false },
+        { id: "cognitivecomputations/dolphin-2.9-llama3-70b",  label: "Dolphin 2.9 70B (uncensored)", vision: false },
       ],
       image: [
         { id: "stability-ai/sdxl",             label: "SDXL" },
@@ -308,13 +309,15 @@ const PROVIDERS = {
       image: "stability-ai/sdxl",
       video: "anotherjesse/zeroscope-v2-xl",
     },
+    // Поддержка vision для загрузки фото
+    visionModel: "yorickvp/llava-13b",
   },
   groq: {
     label: "Groq (только чат)",
     models: {
       chat: [
-        { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
-        { id: "llama-3.1-8b-instant",    label: "Llama 3.1 8B (fast)" },
+        { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", vision: false },
+        { id: "llama-3.1-8b-instant",    label: "Llama 3.1 8B (fast)", vision: false },
       ],
       image: [],
       video: [],
@@ -324,6 +327,7 @@ const PROVIDERS = {
       image: null,
       video: null,
     },
+    visionModel: null, // Groq не поддерживает vision
   },
 };
 
@@ -391,11 +395,18 @@ function fileToDataUri(file) {
    ===================================================================== */
 function setStatus(msg) { statusBar.textContent = msg; }
 
-function addMessage(text, isUser, { mediaUrl = null, isVideo = false, isError = false } = {}) {
+function addMessage(text, isUser, { mediaUrl = null, isVideo = false, isError = false, localPreviewUrl = null } = {}) {
   const div = document.createElement("div");
   div.className = `message ${isUser ? "user" : "bot"}${isError ? " error" : ""}`;
   if (text) div.appendChild(document.createTextNode(text));
-  if (mediaUrl) {
+  if (localPreviewUrl) {
+    const img = document.createElement("img");
+    img.src = localPreviewUrl;
+    img.style.maxWidth = "200px";
+    img.style.marginTop = "8px";
+    img.style.borderRadius = "12px";
+    div.appendChild(img);
+  } else if (mediaUrl) {
     const el = document.createElement(isVideo ? "video" : "img");
     el.src = mediaUrl;
     if (isVideo) { el.controls = true; el.playsInline = true; el.preload = "metadata"; }
@@ -420,7 +431,15 @@ function hideSkeleton() {
 
 function setBusy(isBusy) {
   sendBtn.disabled = isBusy;
-  uploadBtn.disabled = isBusy;
+  // Кнопка загрузки блокируется, если busy или текущий провайдер не поддерживает vision
+  updateUploadButton();
+}
+
+function updateUploadButton() {
+  const p = PROVIDERS[state.provider];
+  const supportsVision = !!p.visionModel;
+  uploadBtn.disabled = !supportsVision;
+  uploadBtn.title = supportsVision ? "Загрузить фото для анализа" : "Текущий провайдер не поддерживает анализ фото";
 }
 
 /* =====================================================================
@@ -442,6 +461,7 @@ function renderProviderSelect() {
     state.provider = e.target.value;
     setProviderDefaults(state.provider);
     renderModelSelects();
+    updateUploadButton();
     setStatus(`Провайдер: ${PROVIDERS[state.provider].label}`);
   };
 }
@@ -480,7 +500,6 @@ async function replicateCreate(model, input, signal) {
     headers: {
       Authorization: `Token ${CONFIG.REPLICATE_TOKEN}`,
       "Content-Type": "application/json",
-      Prefer: "wait=5",  // быстрый hint — некоторые модели отвечают сразу
     },
     body: JSON.stringify({ input }),
   }, { signal, timeoutMs: 60000 });
@@ -512,9 +531,10 @@ async function replicatePoll(predictionId, { maxMs = 180000, signal } = {}) {
 }
 
 async function replicateChat(model, messages, signal) {
+  // ВАЖНО: заголовки должны содержать только ASCII. Промпт собираем на английском.
   const prompt = messages
-    .map((m) => `${m.role === "user" ? "Пользователь" : "Ассистент"}: ${m.content}`)
-    .join("\n") + "\nАссистент:";
+    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n") + "\nAssistant:";
 
   const pred = await replicateCreate(model, {
     prompt,
@@ -557,7 +577,7 @@ async function replicateVideo(model, prompt, signal) {
 async function replicateVision(dataUri, signal) {
   const pred = await replicateCreate("yorickvp/llava-13b", {
     image: dataUri,
-    prompt: "Опиши это изображение подробно на русском языке.",
+    prompt: "Describe this image in detail in Russian.",
     max_tokens: 400,
   }, signal);
   const result = await replicatePoll(pred.id, { maxMs: 90000, signal });
@@ -578,7 +598,7 @@ async function groqChat(model, messages, signal) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: "Ты дружелюбный и прямой ассистент. Отвечай кратко и по делу на русском." },
+        { role: "system", content: "You are a friendly and direct assistant. Answer briefly in Russian." },
         ...messages,
       ],
       temperature: 0.8,
@@ -678,7 +698,9 @@ fileInput.addEventListener("change", async () => {
   if (!file) return;
   fileInput.value = "";
 
-  addMessage("📎 Фото отправлено, анализирую…", true);
+  const previewUrl = URL.createObjectURL(file);
+  addMessage("📎 Фото отправлено, анализирую…", true, { localPreviewUrl: previewUrl });
+
   setBusy(true);
   showSkeleton();
 
@@ -699,6 +721,7 @@ fileInput.addEventListener("change", async () => {
       addMessage(`⚠️ Не удалось проанализировать фото: ${err.message}`, false, { isError: true });
     }
   } finally {
+    URL.revokeObjectURL(previewUrl);
     setBusy(false);
   }
 });
@@ -736,6 +759,7 @@ function init() {
   setProviderDefaults(state.provider);
   renderProviderSelect();
   renderModelSelects();
+  updateUploadButton();
   setStatus(`Провайдер: ${PROVIDERS[state.provider].label}`);
 
   // Проверка, что ключи вставлены
