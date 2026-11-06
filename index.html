@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>AI Uncensored Hub</title>
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #16161e; --surface-2: #1f1f2a; --text: #e8e8f0; --text-dim: #8888a0;
+    --accent: #7c5cfc; --accent-glow: rgba(124, 92, 252, 0.35); --user-bubble: #2d2450; --bot-bubble: #1c1c28;
+    --radius: 18px; --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-top: env(safe-area-inset-top, 0px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; padding-top: var(--safe-top); -webkit-tap-highlight-color: transparent; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid #2a2a3a; font-weight: 700; font-size: 17px; flex-shrink: 0; }
+  .icon-btn { background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; transition: background 0.2s, opacity 0.2s; }
+  .icon-btn:active { background: #2a2a3a; } .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .status-bar { font-size: 12px; color: var(--text-dim); text-align: center; padding: 4px 8px; background: var(--bg); flex-shrink: 0; }
+  .chat-container { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth; }
+  .message { max-width: 88%; padding: 10px 14px; border-radius: var(--radius); line-height: 1.45; font-size: 15px; word-wrap: break-word; white-space: pre-wrap; animation: fadeIn 0.25s ease; }
+  .message.user { align-self: flex-end; background: var(--user-bubble); border-bottom-right-radius: 6px; }
+  .message.bot { align-self: flex-start; background: var(--bot-bubble); border-bottom-left-radius: 6px; }
+  .message.error { background: #3a1c1c; color: #ffb0b0; }
+  .message img, .message video { max-width: 100%; border-radius: 12px; margin-top: 8px; display: block; object-fit: cover; }
+  .message img.preview { max-height: 200px; width: auto; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .skeleton { align-self: flex-start; width: 55%; height: 42px; border-radius: var(--radius); background: linear-gradient(90deg, #1c1c28 25%, #262636 50%, #1c1c28 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .input-area { display: flex; gap: 8px; align-items: flex-end; padding: 8px 12px; padding-bottom: calc(8px + var(--safe-bottom)); background: var(--surface); border-top: 1px solid #2a2a3a; flex-shrink: 0; }
+  textarea { flex: 1; background: var(--surface-2); border: 1px solid #2a2a3a; border-radius: 22px; color: var(--text); font-size: 16px; padding: 10px 16px; resize: none; max-height: 120px; min-height: 44px; outline: none; line-height: 1.4; }
+  textarea:focus { border-color: var(--accent); }
+  .send-btn { background: var(--accent); border: none; color: white; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; flex-shrink: 0; box-shadow: 0 0 18px var(--accent-glow); }
+  .send-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; z-index: 1000; transition: opacity 0.25s; }
+  .modal.hidden { opacity: 0; pointer-events: none; }
+  .modal-content { background: var(--surface); width: 100%; max-width: 480px; border-radius: 24px 24px 0 0; padding: 20px 20px calc(20px + var(--safe-bottom)); animation: slideUp 0.3s ease; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; color: var(--text-dim); margin: 14px 0 6px; }
+  select { width: 100%; padding: 12px; background: var(--surface-2); border: 1px solid #2a2a3a; color: var(--text); border-radius: 12px; font-size: 15px; outline: none; }
+  select:disabled { opacity: 0.5; }
+  .primary-btn { width: 100%; margin-top: 20px; padding: 14px; background: var(--accent); border: none; border-radius: 14px; color: white; font-size: 16px; font-weight: 600; cursor: pointer; }
+  @media (min-width: 600px) { .modal { align-items: center; } .modal-content { border-radius: 24px; } }
+</style>
+</head>
+<body>
+<header>
+  <span>🔞 AI Hub</span>
+  <button id="settingsBtn" class="icon-btn">⚙️</button>
+</header>
+<div id="statusBar" class="status-bar">Готов к работе</div>
+<main id="chatContainer" class="chat-container">
+  <div class="message bot">Привет! Выбери провайдера в настройках ⚙️. Могу поболтать, нарисовать фото, собрать видео, или описать твоё фото (📎).</div>
+</main>
+<div class="input-area">
+  <button id="uploadBtn" class="icon-btn">📎</button>
+  <input type="file" id="fileInput" accept="image/*" hidden>
+  <textarea id="userInput" rows="1" placeholder="Сообщение или промпт..."></textarea>
+  <button id="sendBtn" class="send-btn">➤</button>
+</div>
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header"><h3>Настройки</h3><button id="closeSettings" class="icon-btn">×</button></div>
+    <label>Провайдер</label><select id="providerSelect"></select>
+    <label>Модель чата</label><select id="chatModelSelect"></select>
+    <label>Модель изображений</label><select id="imageModelSelect"></select>
+    <label>Модель видео</label><select id="videoModelSelect"></select>
+    <button id="saveSettings" class="primary-btn">Сохранить</button>
+  </div>
+</div>
+
+<script>
+const PROVIDERS = {
+  replicate: {
+    label: "Replicate",
+    models: {
+      chat: [
+        { id: "meta/meta-llama-3-70b-instruct", label: "Llama 3 70B" },
+        { id: "cognitivecomputations/dolphin-2.9-llama3-70b", label: "Dolphin (uncensored)" }
+      ],
+      image: [
+        { id: "stability-ai/sdxl", label: "SDXL" },
+        { id: "lucataco/dreamshaper-xl-turbo", label: "DreamShaper XL" }
+      ],
+      video: [
+        { id: "anotherjesse/zeroscope-v2-xl", label: "Zeroscope v2 XL" }
+      ]
+    },
+    defaults: {
+      chat: "meta/meta-llama-3-70b-instruct",
+      image: "stability-ai/sdxl",
+      video: "anotherjesse/zeroscope-v2-xl"
+    },
+    visionModel: true
+  },
+  groq: {
+    label: "Groq (быстрый чат)",
+    models: {
+      chat: [
+        { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
+        { id: "qwen/qwen3-32b", label: "Qwen 3 32B" }
+      ],
+      image: [],
+      video: []
+    },
+    defaults: {
+      chat: "openai/gpt-oss-120b",
+      image: null,
+      video: null
+    },
+    visionModel: false
+  }
+};
+
+const state = { provider: "replicate", chatModel: "", imageModel: "", videoModel: "", messages: [], abortController: null };
+const chatContainer = document.getElementById("chatContainer");
+const userInput = document.getElementById("userInput");
+const sendBtn = document.getElementById("sendBtn");
+const uploadBtn = document.getElementById("uploadBtn");
+const fileInput = document.getElementById("fileInput");
+const statusBar = document.getElementById("statusBar");
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function fileToDataUri(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function setStatus(msg) { statusBar.textContent = msg; }
+
+function addMessage(text, isUser, { mediaUrl = null, isVideo = false, isError = false, localPreviewUrl = null } = {}) {
+  const div = document.createElement("div");
+  div.className = `message ${isUser ? "user" : "bot"}${isError ? " error" : ""}`;
+  if (text) div.appendChild(document.createTextNode(text));
+  if (localPreviewUrl) {
+    const img = document.createElement("img"); img.src = localPreviewUrl; img.className = "preview"; div.appendChild(img);
+  } else if (mediaUrl) {
+    const el = document.createElement(isVideo ? "video" : "img");
+    el.src = mediaUrl;
+    if (isVideo) { el.controls = true; el.playsInline = true; }
+    div.appendChild(el);
+  }
+  chatContainer.appendChild(div);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+let skeletonEl = null;
+function showSkeleton() {
+  skeletonEl = document.createElement("div"); skeletonEl.className = "skeleton";
+  chatContainer.appendChild(skeletonEl); chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+function hideSkeleton() { skeletonEl?.remove(); skeletonEl = null; }
+
+function setBusy(isBusy) {
+  sendBtn.disabled = isBusy;
+  const p = PROVIDERS[state.provider];
+  uploadBtn.disabled = isBusy || !p.visionModel;
+}
+
+function setProviderDefaults(providerId) {
+  const p = PROVIDERS[providerId];
+  state.chatModel = p.defaults.chat; state.imageModel = p.defaults.image; state.videoModel = p.defaults.video;
+}
+
+function renderProviderSelect() {
+  const sel = document.getElementById("providerSelect");
+  sel.innerHTML = Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}" ${k === state.provider ? "selected" : ""}>${v.label}</option>`).join("");
+  sel.onchange = (e) => { state.provider = e.target.value; setProviderDefaults(state.provider); renderModelSelects(); setBusy(false); };
+}
+
+function renderModelSelects() {
+  const p = PROVIDERS[state.provider];
+  const fill = (id, list, selected) => {
+    const el = document.getElementById(id);
+    if (!list || !list.length) { el.innerHTML = `<option value="">— нет —</option>`; el.disabled = true; return; }
+    el.disabled = false;
+    el.innerHTML = list.map(m => `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${m.label}</option>`).join("");
+    el.onchange = (e) => { state[id.replace("ModelSelect","Model")] = e.target.value; };
+  };
+  fill("chatModelSelect", p.models.chat, state.chatModel);
+  fill("imageModelSelect", p.models.image, state.imageModel);
+  fill("videoModelSelect", p.models.video, state.videoModel);
+}
+
+async function pollJob(id, signal) {
+  for (let i = 0; i < 60; i++) {
+    await sleep(2000);
+    if (signal?.aborted) throw new Error("Отменено");
+    const res = await fetch(`/api/poll/${id}`, { signal });
+    const text = await res.text();
+    try {
+      const data = JSON.parse(text);
+      if (data.status === "succeeded") return data;
+      if (data.status === "failed") throw new Error(data.error || "Ошибка генерации");
+    } catch(e) {
+      throw new Error("Сервер вернул ошибку. Возможно, бэкенд не запущен.");
+    }
+  }
+  throw new Error("Таймаут ожидания");
+}
+
+async function handleSend() {
+  const text = userInput.value.trim();
+  if (!text) return;
+
+  addMessage(text, true);
+  state.messages.push({ role: "user", content: text });
+  userInput.value = ""; userInput.style.height = "44px";
+  setBusy(true); showSkeleton();
+
+  state.abortController?.abort();
+  state.abortController = new AbortController();
+  const signal = state.abortController.signal;
+
+  try {
+    const isImage = /картинк|фото|изображени|нарисуй|photo|image|draw/i.test(text);
+    const isVideo = /видео|video|clip|animate|анимаци/i.test(text);
+
+    if (isImage || isVideo) {
+      setStatus(isVideo ? "Генерирую видео…" : "Генерирую изображение…");
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal,
+        body: JSON.stringify({ model: isVideo ? state.videoModel : state.imageModel, prompt: text, type: isVideo ? "video" : "image" })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      const result = await pollJob(data.id, signal);
+      hideSkeleton();
+      addMessage(isVideo ? "🎬 Готово:" : "🖼 Готово:", false, { mediaUrl: result.url, isVideo });
+      setStatus("Готов к работе");
+    } else {
+      setStatus("Думаю…");
+      const res = await fetch("/api/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal,
+        body: JSON.stringify({ provider: state.provider, model: state.chatModel, messages: state.messages.slice(-20) })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      let reply = data.reply;
+      if (data.id) {
+        const result = await pollJob(data.id, signal);
+        reply = result.text;
+      }
+
+      hideSkeleton();
+      addMessage(reply, false);
+      state.messages.push({ role: "assistant", content: reply });
+      setStatus("Готов к работе");
+    }
+  } catch (err) {
+    hideSkeleton();
+    if (err.name !== "AbortError") { addMessage(`⚠️ ${err.message}`, false, { isError: true }); setStatus("Ошибка"); }
+  } finally {
+    hideSkeleton(); setBusy(false);
+  }
+}
+
+uploadBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  fileInput.value = "";
+
+  const previewUrl = URL.createObjectURL(file);
+  addMessage("📎 Фото отправлено, анализирую…", true, { localPreviewUrl: previewUrl });
+  setBusy(true); showSkeleton();
+
+  state.abortController?.abort();
+  state.abortController = new AbortController();
+  const signal = state.abortController.signal;
+
+  try {
+    const formData = new FormData();
+    formData.append("image", file);
+    const res = await fetch("/api/vision", { method: "POST", body: formData, signal });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const result = await pollJob(data.id, signal);
+    hideSkeleton();
+    addMessage(`📷 На фото: ${result.text}`, false);
+    state.messages.push({ role: "user", content: `[Пользователь загрузил фото: ${result.text}]` });
+    setStatus("Готов к работе");
+  } catch (err) {
+    hideSkeleton();
+    if (err.name !== "AbortError") { addMessage(`⚠️ Ошибка анализа: ${err.message}`, false, { isError: true }); }
+  } finally {
+    URL.revokeObjectURL(previewUrl); setBusy(false);
+  }
+});
+
+sendBtn.addEventListener("click", handleSend);
+userInput.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+userInput.addEventListener("input", () => { userInput.style.height = "auto"; userInput.style.height = Math.min(userInput.scrollHeight, 120) + "px"; });
+
+document.getElementById("settingsBtn").onclick = () => document.getElementById("settingsModal").classList.remove("hidden");
+document.getElementById("closeSettings").onclick = () => document.getElementById("settingsModal").classList.add("hidden");
+document.getElementById("saveSettings").onclick = () => { document.getElementById("settingsModal").classList.add("hidden"); setStatus(`Провайдер: ${PROVIDERS[state.provider].label}`); };
+
+setProviderDefaults(state.provider); renderProviderSelect(); renderModelSelects(); setBusy(false);
+</script>
+</body>
+</html>
